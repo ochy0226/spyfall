@@ -1,0 +1,289 @@
+# 스파이폴 장소·역할 목록 (메모장으로 고칠 수 있어요. 고친 뒤 서버를 다시 켜면 반영돼요)
+# 장소는 줄 맨 앞에 "영어 = 한글 뜻 = 그림(이모지)", 역할은 앞에 띄어쓰기 2칸 "영어 = 한글"
+# (역할은 학생 화면에 한글만 나와요)
+# 장소마다 역할은 4개 이상 넣어 주세요. # 으로 시작하는 줄은 무시해요.
+
+School = 학교 = 🏫
+  Teacher = 선생님
+  Student = 학생
+  Principal = 교장 선생님
+  School Nurse = 보건 선생님
+  Janitor = 학교 관리인
+  Cafeteria Cook = 급식 조리사
+  Librarian = 사서
+
+Hospital = 병원 = 🏥
+  Doctor = 의사
+  Nurse = 간호사
+  Patient = 환자
+  Surgeon = 외과 의사
+  Visitor = 문병 온 사람
+  Pharmacist = 약사
+  Ambulance Driver = 구급차 운전사
+
+Airplane = 비행기 = ✈️
+  Pilot = 조종사
+  Flight Attendant = 승무원
+  Passenger = 승객
+  Co-Pilot = 부조종사
+  Crying Baby = 우는 아기
+  Mechanic = 정비사
+  Air Marshal = 항공 보안관
+
+Beach = 해변 = 🏖️
+  Lifeguard = 인명 구조원
+  Surfer = 서퍼
+  Tourist = 관광객
+  Ice Cream Seller = 아이스크림 장수
+  Swimmer = 수영하는 사람
+  Photographer = 사진작가
+  Sandcastle Builder = 모래성 쌓는 아이
+
+Movie Theater = 영화관 = 🎬
+  Ticket Seller = 매표원
+  Moviegoer = 관객
+  Popcorn Seller = 팝콘 판매원
+  Projectionist = 영사 기사
+  Security Guard = 경비원
+  Movie Star = 영화배우
+  Couple = 커플
+
+Restaurant = 식당 = 🍽️
+  Chef = 요리사
+  Waiter = 웨이터
+  Customer = 손님
+  Cashier = 계산원
+  Dishwasher = 설거지 담당
+  Food Critic = 음식 평론가
+  Musician = 음악가
+
+Zoo = 동물원 = 🦁
+  Zookeeper = 사육사
+  Visitor = 관람객
+  Veterinarian = 수의사
+  Tour Guide = 안내원
+  Photographer = 사진작가
+  Child = 아이
+  Ticket Seller = 매표원
+
+Supermarket = 슈퍼마켓 = 🛒
+  Cashier = 계산원
+  Shopper = 장 보는 손님
+  Manager = 점장
+  Stock Clerk = 진열 담당 직원
+  Butcher = 정육 코너 직원
+  Security Guard = 경비원
+  Delivery Driver = 배달 기사
+
+Bank = 은행 = 🏦
+  Bank Teller = 은행 창구 직원
+  Customer = 고객
+  Manager = 지점장
+  Security Guard = 경비원
+  Robber = 강도
+  Accountant = 회계사
+  Cleaner = 청소부
+
+Police Station = 경찰서 = 🚓
+  Police Officer = 경찰관
+  Detective = 형사
+  Suspect = 용의자
+  Lawyer = 변호사
+  Reporter = 기자
+  Victim = 피해자
+  Police Chief = 경찰서장
+
+Train = 기차 = 🚆
+  Conductor = 차장
+  Train Driver = 기관사
+  Passenger = 승객
+  Snack Seller = 간식 판매원
+  Tourist = 관광객
+  Student = 학생
+  Sleeping Man = 졸고 있는 아저씨
+
+Hotel = 호텔 = 🏨
+  Receptionist = 접수 직원
+  Guest = 투숙객
+  Bellhop = 짐 들어 주는 직원
+  Housekeeper = 객실 청소원
+  Manager = 지배인
+  Chef = 요리사
+  Security Guard = 경비원
+
+Amusement Park = 놀이공원 = 🎢
+  Ride Operator = 놀이기구 운영 직원
+  Visitor = 방문객
+  Mascot = 마스코트
+  Food Seller = 음식 판매원
+  Child = 아이
+  Parent = 부모
+  Cleaner = 청소부
+
+Library = 도서관 = 📚
+  Librarian = 사서
+  Student = 학생
+  Writer = 작가
+  Reader = 독자
+  Volunteer = 자원봉사자
+  Researcher = 연구원
+  Child = 아이
+
+Space Station = 우주 정거장 = 🚀
+  Astronaut = 우주 비행사
+  Scientist = 과학자
+  Engineer = 엔지니어
+  Commander = 사령관
+  Doctor = 의사
+  Alien = 외계인
+  Space Tourist = 우주 관광객
+
+Pirate Ship = 해적선 = 🏴‍☠️
+  Captain = 선장
+  Pirate = 해적
+  Cook = 요리사
+  Prisoner = 포로
+  Sailor = 선원
+  Parrot = 앵무새
+  Treasure Hunter = 보물 사냥꾼
+
+Farm = 농장 = 🚜
+  Farmer = 농부
+  Cowboy = 카우보이
+  Veterinarian = 수의사
+  Tractor Driver = 트랙터 운전사
+  Visitor = 방문객
+  Scarecrow = 허수아비
+  Farm Worker = 농장 일꾼
+
+Gym = 헬스장 = 🏋️
+  Personal Trainer = 개인 트레이너
+  Athlete = 운동선수
+  Coach = 코치
+  Beginner = 초보자
+  Receptionist = 접수 직원
+  Bodybuilder = 보디빌더
+  Cleaner = 청소부
+
+Concert Hall = 공연장 = 🎤
+  Singer = 가수
+  Fan = 팬
+  Drummer = 드럼 연주자
+  Guitarist = 기타 연주자
+  Manager = 매니저
+  Sound Engineer = 음향 기사
+  Security Guard = 경비원
+
+Fire Station = 소방서 = 🚒
+  Firefighter = 소방관
+  Fire Chief = 소방서장
+  Truck Driver = 소방차 운전사
+  Paramedic = 구급 대원
+  Field Trip Student = 견학 온 학생
+  Dispatcher = 신고 접수 요원
+  Cook = 요리사
+
+Hair Salon = 미용실 = 💇
+  Hairdresser = 미용사
+  Customer = 손님
+  Receptionist = 접수 직원
+  Nail Artist = 네일 아티스트
+  Model = 모델
+  Owner = 주인
+  Assistant = 보조 직원
+
+Museum = 박물관 = 🏛️
+  Curator = 큐레이터
+  Tour Guide = 안내원
+  Visitor = 관람객
+  Security Guard = 경비원
+  Artist = 예술가
+  Student = 학생
+  Thief = 도둑
+
+Post Office = 우체국 = 📮
+  Postal Clerk = 우체국 직원
+  Mail Carrier = 집배원
+  Customer = 손님
+  Manager = 우체국장
+  Delivery Driver = 택배 기사
+  Security Guard = 경비원
+
+Bakery = 빵집 = 🥐
+  Baker = 제빵사
+  Customer = 손님
+  Cashier = 계산원
+  Delivery Driver = 배달 기사
+  Cake Designer = 케이크 디자이너
+  Owner = 주인
+
+Subway = 지하철 = 🚇
+  Train Driver = 기관사
+  Passenger = 승객
+  Station Staff = 역무원
+  Student = 학생
+  Office Worker = 회사원
+  Street Musician = 거리 음악가
+  Police Officer = 경찰관
+
+Campsite = 캠핑장 = 🏕️
+  Camper = 캠핑하는 사람
+  Park Ranger = 공원 관리인
+  Scout = 스카우트 대원
+  Cook = 요리사
+  Hiker = 등산객
+  Photographer = 사진작가
+  Child = 아이
+
+Swimming Pool = 수영장 = 🏊
+  Lifeguard = 인명 구조원
+  Swimmer = 수영 선수
+  Coach = 코치
+  Diver = 다이빙 선수
+  Child = 아이
+  Parent = 부모
+  Cleaner = 청소부
+
+TV Studio = 방송국 = 📺
+  News Anchor = 뉴스 앵커
+  Camera Operator = 카메라 감독
+  Director = 감독
+  Guest = 출연자
+  Weather Forecaster = 기상 캐스터
+  Makeup Artist = 분장사
+  Audience = 방청객
+
+Soccer Stadium = 축구 경기장 = ⚽
+  Soccer Player = 축구 선수
+  Referee = 심판
+  Coach = 감독
+  Fan = 팬
+  Goalkeeper = 골키퍼
+  Reporter = 기자
+  Food Seller = 음식 판매원
+
+Castle = 성 = 🏰
+  King = 왕
+  Queen = 여왕
+  Knight = 기사
+  Prince = 왕자
+  Princess = 공주
+  Guard = 경비병
+  Cook = 요리사
+
+Wedding = 결혼식 = 💒
+  Bride = 신부
+  Groom = 신랑
+  Guest = 하객
+  Photographer = 사진작가
+  Singer = 축가 가수
+  Parent = 혼주 (부모님)
+  Flower Girl = 꽃 뿌리는 아이
+
+Dentist's Office = 치과 = 🦷
+  Dentist = 치과 의사
+  Patient = 환자
+  Nurse = 간호사
+  Receptionist = 접수 직원
+  Scared Child = 겁먹은 아이
+  Parent = 부모

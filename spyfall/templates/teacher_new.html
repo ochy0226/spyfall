@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block title %}새 게임 만들기 · 스파이폴{% endblock %}
+{% block body %}
+<div class="center-page">
+  <div class="hero">
+    <div class="brand">
+      <span class="logo">🕵️</span>
+      <div><b>스파이폴</b><small>선생님 · 새 게임 만들기</small></div>
+    </div>
+    <form class="panel" method="post" style="padding:22px">
+      <div class="field">
+        <label for="name">게임 코드 <small style="color:var(--muted);font-weight:400">(학생들이 입력할 코드, 예: 3반)</small></label>
+        <input class="input" id="name" name="name" value="{{ suggested }}" maxlength="20" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>한 판 시간 <small style="color:var(--muted);font-weight:400">(질문하는 시간, 끝나면 투표)</small></label>
+        <div class="radio-row">
+          {% for m in minutes %}
+          <label><input type="radio" name="minutes" value="{{ m }}" {% if m == default_minutes %}checked{% endif %}>{{ m }}분</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label>장소 후보 개수 <small style="color:var(--muted);font-weight:400">(적을수록 스파이가 맞히기 쉬워요)</small></label>
+        <div class="radio-row">
+          {% for k, label in packs.items() %}
+          <label><input type="radio" name="pack" value="{{ k }}" {% if k == default_pack %}checked{% endif %}>{{ label }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px;margin:-4px 0 16px">스파이 수는 들어온 인원에 맞춰 자동으로 정해지고, 대기 화면에서 바꿀 수 있어요.</p>
+      <button class="btn primary block" type="submit">중계 화면 열기</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

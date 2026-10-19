@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+{% block title %}{{ name }} · 선생님 화면 · 스파이폴{% endblock %}
+{% block body %}
+<div class="t-app" id="app" data-game="{{ name }}">
+  <header class="t-top">
+    <div class="brand">
+      <span class="logo">🕵️</span>
+      <div><b>스파이폴</b><small>질문하고 대답하며 스파이 찾기</small></div>
+    </div>
+    <div class="t-room">게임 코드 <b>{{ name }}</b> · <span id="roundNo"></span></div>
+    <div class="t-actions">
+      <button class="btn" id="btnSound">🔇 효과음</button>
+      <button class="btn" data-open="rulesModal">게임 방법</button>
+      <button class="btn" id="btnMeaning">뜻 숨기기</button>
+      <button class="btn" id="btnPause">⏸ 시간 멈춤</button>
+      <button class="btn" id="btnAsker">🎲 질문자 바꾸기</button>
+      <button class="btn" id="btnVote">🗳 바로 투표</button>
+      <button class="btn primary" id="btnNewRound">새 판</button>
+    </div>
+  </header>
+
+  <main class="t-main">
+    <section class="t-stage">
+      <div class="panel stage" id="stage"></div>
+      <div class="panel t-locs" id="locPanel">
+        <h3><span id="locTitle">장소 후보</span><span id="locNote"></span></h3>
+        <div class="loc-grid" id="locGrid"></div>
+      </div>
+    </section>
+
+    <aside class="t-side">
+      <div class="panel join" id="joinPanel">
+        <img class="qr" src="{{ url_for('qr', name=name) }}" alt="입장 QR 코드">
+        <div>
+          <div class="join-title">📱 QR을 찍고 입장!</div>
+          <div class="join-url">{{ join_url }}</div>
+          <div class="join-code">게임 코드 <b>{{ name }}</b></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3><span>참가 학생</span><span id="playerCount"></span></h3>
+        <ul class="plist" id="playerList"></ul>
+        <div class="muted" style="font-size:12px;margin-top:8px">숫자 = 질문 받은 횟수 · 이름에 마우스를 올리면 🎤 질문자로 지정 / ✕ 내보내기</div>
+      </div>
+      <div class="panel">
+        <h3><span>질문 기록</span><span id="qCount"></span></h3>
+        <ul class="hist" id="historyList"></ul>
+      </div>
+      <div class="panel" style="flex:1;min-height:110px;overflow:auto">
+        <h3>진행 기록</h3>
+        <ul class="log-list" id="logList"></ul>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="fx hidden" id="fx"></div>
+
+<div class="overlay hidden" id="rulesModal">
+  <div class="modal">
+    <h2>게임 방법</h2>
+    <p class="sub">처음 하는 반이라면 이 화면을 띄워 놓고 설명해 주세요.</p>
+    <div id="rulesBody"></div>
+    <div class="modal-actions"><button class="btn primary" data-close="rulesModal">알겠어요</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="resultModal">
+  <div class="modal wide" id="resultBody"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/teacher.js') }}"></script>
+{% endblock %}

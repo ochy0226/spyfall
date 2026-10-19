@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block title %}{{ name }} · 스파이폴{% endblock %}
+{% block body %}
+<div class="p-app" id="app" data-game="{{ name }}">
+  <header class="p-top">
+    <div class="brand"><span class="logo">🕵️</span><div><b>스파이폴</b><small>게임 {{ name }}</small></div></div>
+    <button class="me-chip" id="meChip">입장하기</button>
+  </header>
+
+  <div class="p-status" id="status"><div class="grow"><div class="big">연결하는 중...</div></div></div>
+
+  <div class="rcard hidden" id="rcard">
+    <div class="inner">
+      <div class="side cover" data-flip>
+        <div class="stampy">TOP SECRET</div>
+        <div class="hint">👆 눌러서 내 비밀 카드 보기<small>친구에게 보이지 않게 가리고 보세요</small></div>
+      </div>
+      <div class="side face" id="rface" data-flip></div>
+    </div>
+  </div>
+
+  <div id="boxes"></div>
+
+  <div class="p-box" id="locBox">
+    <h3><span id="locTitle">장소 후보</span><small id="locNote"></small></h3>
+    <div class="loc-grid" id="locGrid"></div>
+  </div>
+
+  <div class="p-foot"><button class="link" data-open="rulesModal">게임 방법 보기</button></div>
+</div>
+
+<div class="overlay hidden" id="joinModal">
+  <div class="modal">
+    <h2>🕵️ 스파이폴 입장</h2>
+    <p class="sub">이름을 쓰고 입장하세요. 선생님이 시작하면 비밀 카드가 나와요.</p>
+    <div class="field">
+      <label for="joinName">이름</label>
+      <input class="input" id="joinName" maxlength="12" placeholder="예: 김민수" autocomplete="off">
+    </div>
+    <button class="btn primary block" id="btnJoin">입장</button>
+    <div class="p-foot"><button class="link" data-open="rulesModal">게임 방법 보기</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="confirmModal">
+  <div class="modal" style="text-align:center">
+    <p class="sub" style="margin-bottom:4px" id="confirmLead"></p>
+    <div class="sheet-word" id="confirmWord"></div>
+    <div class="sheet-mean" id="confirmMean"></div>
+    <div class="modal-actions" style="justify-content:stretch">
+      <button class="btn" style="flex:1" data-close="confirmModal">취소</button>
+      <button class="btn primary" style="flex:1" id="btnConfirm">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="guessModal">
+  <div class="modal">
+    <h2>🕵️ 장소 맞히기</h2>
+    <p class="sub">맞히면 <b>스파이 승리!</b> 틀리면 정체가 드러나요. 신중하게!</p>
+    <div class="loc-grid" id="guessGrid"></div>
+    <div class="modal-actions"><button class="btn" data-close="guessModal">취소</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="rulesModal">
+  <div class="modal">
+    <h2>게임 방법</h2>
+    <div id="rulesBody"></div>
+    <div class="modal-actions"><button class="btn primary" data-close="rulesModal">알겠어요</button></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/play.js') }}"></script>
+{% endblock %}

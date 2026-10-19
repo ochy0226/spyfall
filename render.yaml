@@ -1,0 +1,13 @@
+# Render 무료 서버 설정 (Render에서 New > Blueprint로 이 저장소를 고르면 자동으로 읽어요)
+services:
+  - type: web
+    name: spyfall
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    envVars:
+      - key: SPYFALL_CLOUD
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.12.10"
