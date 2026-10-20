@@ -58,8 +58,13 @@ def teacher_new():
             pack = int(request.form.get('pack', DEFAULT_PACK))
         except ValueError:
             minutes, pack = DEFAULT_MINUTES, DEFAULT_PACK
-        create_game(name, minutes, pack)
-        return redirect(url_for('teacher_view', name=name))
+        game, created = create_game(name, minutes, pack)
+        if not created:
+            return render_template('teacher_new.html', minutes=MINUTE_OPTIONS, default_minutes=minutes,
+                                   packs=PACK_OPTIONS, default_pack=pack, suggested=name,
+                                   error=f'"{name}" 게임이 이미 있어요. 다른 게임 코드를 써 주세요.')
+        # 열쇠(k)를 가진 이 화면만 선생님 버튼·정답 보기를 쓸 수 있다 (브라우저에 저장하고 주소창에서는 지운다)
+        return redirect(url_for('teacher_view', name=name, k=game.teacher_key))
     return render_template('teacher_new.html', minutes=MINUTE_OPTIONS, default_minutes=DEFAULT_MINUTES,
                            packs=PACK_OPTIONS, default_pack=DEFAULT_PACK, suggested=str(random.randint(1000, 9999)))
 

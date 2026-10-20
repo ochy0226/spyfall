@@ -142,9 +142,23 @@ function pickGrid(s, opts) {
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-ask]');
   if (a) send('ask', { id: Number(a.dataset.ask) });
-  if (e.target.closest('[data-turn=asked]')) send('asked');
   if (e.target.closest('[data-turn=answered]')) send('answered');
   if (e.target.closest('[data-turn=unpick]')) send('unpick');
+  // 지목 투표: 열기 → 친구 고르기 → 확인 / 찬성·반대
+  if (e.target.closest('[data-accuse-open]')) {
+    $('#accuseGrid').innerHTML = pickGrid(state, { action: 'accuse' });
+    openModal('accuseModal');
+  }
+  const ac = e.target.closest('[data-accuse]');
+  if (ac) {
+    const p = state.players.find(x => x.id === Number(ac.dataset.accuse));
+    closeModal('accuseModal');
+    confirmBox('이 친구를 스파이로 지목할까요? (한 판에 한 번)', p ? p.name : '',
+      '지목당한 친구 빼고 모두 찬성하면 정체가 공개돼요. 시민이었으면 스파이가 이겨요!', '지목하기',
+      () => send('accuse', { id: Number(ac.dataset.accuse) }));
+  }
+  const av = e.target.closest('[data-accuse-vote]');
+  if (av) send('accuse_vote', { agree: av.dataset.accuseVote === 'yes' });
   const v = e.target.closest('[data-vote]');
   if (v) send('vote', { id: Number(v.dataset.vote) });
   const g = e.target.closest('[data-guess]');
@@ -176,7 +190,7 @@ function status(big, small, opts) {
 
 function render(s) {
   const me = s.me;
-  $('#meChip').textContent = me ? '👤 ' + me.name : '입장하기';
+  $('#meChip').textContent = me ? `👤 ${me.name} · ${me.score}점` : '입장하기';
   document.body.classList.toggle('no-meaning', !s.showMeaning && s.phase !== 'over');
 
   // 새 판이 되면 카드를 덮는다
@@ -210,45 +224,39 @@ function render(s) {
 function renderPlay(s) {
   const me = s.me, t = s.turn;
   if (me.out) {
-    status('😵 정체가 드러났어요', '장소를 틀려서 스파이인 게 밝혀졌어요. 이번 판은 친구들을 구경해요.', { clock: '남은 시간' });
+    status('😵 정체가 드러났어요', '스파이인 게 밝혀졌어요. 이번 판은 친구들을 구경해요.', { clock: '남은 시간' });
     return '';
   }
+  if (s.accuse) return renderAccuse(s);
   const clock = { clock: '남은 시간' };
   if (s.paused) status('⏸ 선생님이 시간을 멈췄어요', '잠시 기다려 주세요.', clock);
   const st = (big, small, alert) => { if (!s.paused) status(big, small, Object.assign({ alert }, clock)); };
-  const examples = `<h3>💬 질문 예시 <small>장소가 너무 드러나지 않게!</small></h3>
-    <div class="ex-list">${(s.askSample || []).map(q => `<div><b>${esc(q)}</b></div>`).join('')}</div>`;
+  // 스파이든 시민이든 똑같이 보이는 지목 버튼 (한 판에 한 번)
+  const accuseBox = me.canAccuse
+    ? `<div class="p-box accuse-box"><h3>🚨 스파이 같은 친구가 있나요? <small>한 판에 한 번</small></h3>
+        <button class="btn block" data-accuse-open>🚨 스파이 지목하기</button></div>`
+    : me.usedAccuse ? '<p class="muted" style="text-align:center;font-size:13px">이번 판 지목 기회를 이미 썼어요.</p>' : '';
 
-  // 내가 질문할 차례: 친구 고르기 → 질문하고 "질문했어요"
+  // 내가 질문할 차례: 친구를 고르고 바로 말로 질문
   if (s.myTurn && t.stage === 'choose') {
-    st('🎤 내가 질문할 차례!', '질문할 친구를 골라요.', true);
+    st('🎤 내가 질문할 차례!', '친구를 고르고, 그 친구에게 말로 질문해요.', true);
     return `<div class="p-box turn"><h3>누구에게 질문할까요? <small>초록 = 질문을 덜 받은 친구</small></h3>
       ${pickGrid(s, { action: 'ask', fresh: true, blocked: t.from && t.from.id })}
-      <div style="margin-top:14px">${examples}</div></div>`;
-  }
-  if (s.myTurn && t.stage === 'asking') {
-    st(`🗣 ${name(t.target)}에게 질문하세요!`, '말로 질문한 다음 아래 버튼을 눌러요.', true);
-    return `<div class="p-box turn">
-      <button class="btn green block" data-turn="asked">✅ ${name(t.target)}에게 질문했어요</button>
-      <div style="text-align:center;margin:6px 0 12px"><button class="link" data-turn="unpick">다른 친구 고르기</button></div>
-      ${examples}</div>`;
+      <h3 style="margin-top:14px">💬 질문 예시 <small>장소가 너무 드러나지 않게!</small></h3>
+      <div class="ex-list">${(s.askSample || []).map(q => `<div><b>${esc(q)}</b></div>`).join('')}</div></div>${accuseBox}`;
   }
   if (s.myTurn && t.stage === 'answer') {
-    st(`👂 ${name(t.target)}이(가) 대답하는 중`, '대답을 잘 들어 보세요.');
-    return '';
+    st(`🗣 ${name(t.target)}에게 질문하세요!`, `말로 질문하면 ${name(t.target)}이(가) 대답하고 "답변했어요"를 눌러요.`, true);
+    return `<div class="p-box"><div style="text-align:center"><button class="link" data-turn="unpick">잘못 골랐어요 (다시 고르기)</button></div></div>${accuseBox}`;
   }
-  // 내가 질문 받는 차례: 질문 듣기 → 대답하고 "답변했어요"
-  if (s.beingAsked === 'asking') {
-    st(`👂 ${name(t.asker)}이(가) 너에게 질문해요!`, '질문을 잘 들어 보세요. 질문이 끝나면 대답할 차례예요.', true);
-    return '';
-  }
+  // 내가 질문 받는 차례: 대답하고 "답변했어요"
   if (s.beingAsked === 'answer') {
-    st('💬 내가 대답할 차례!', `${name(t.asker)}의 질문에 말로 대답한 다음 아래 버튼을 눌러요.`, true);
+    st(`💬 ${name(t.asker)}이(가) 너에게 질문해요!`, '질문을 듣고 말로 대답한 다음 아래 버튼을 눌러요.', true);
     return `<div class="p-box turn">
       <button class="btn green block" data-turn="answered">✅ 답변했어요</button>
       <p class="muted" style="font-size:13px;margin:8px 0 12px;text-align:center">버튼을 누르면 내가 다음 질문할 친구를 골라요.</p>
       <h3>💬 대답 예시 <small>너무 쉽게 알려 주지 말기!</small></h3>
-      <div class="ans-list">${(s.answerSample || []).map(a => `<span>${esc(a)}</span>`).join('')}</div></div>`;
+      <div class="ans-list">${(s.answerSample || []).map(a => `<span>${esc(a)}</span>`).join('')}</div></div>${accuseBox}`;
   }
   // 구경하는 학생 (스파이든 시민이든 같은 문구 — 옆 친구가 봐도 모르게)
   const big = !t ? '질문 시간'
@@ -256,6 +264,29 @@ function renderPlay(s) {
       : `${name(t.asker)} ➜ ${name(t.target)}`;
   const small = t && t.stage === 'answer' ? `${name(t.target)}의 대답을 잘 들어 보세요. 누가 수상한가요?` : '대답을 잘 들어 보세요. 누가 수상한가요?';
   st(big, small);
+  return accuseBox;
+}
+
+function renderAccuse(s) {
+  const a = s.accuse, me = s.me;
+  const clock = { clock: '지목 투표' };
+  const count = `찬성 ${a.agree} / ${a.need}명`;
+  if (me.accuseRole === 'target') {
+    status(`😱 ${name(a.by)}이(가) 너를 스파이로 지목했어요!`, `스파이가 아니라고 말로 설명해 보세요. (${count})`, Object.assign({ alert: true }, clock));
+    return '';
+  }
+  if (me.accuseRole === 'by') {
+    status(`🚨 ${name(a.target)}을(를) 지목했어요!`, `친구들의 투표를 기다려요. ${count}`, clock);
+    return '';
+  }
+  if (me.accuseRole === 'voter' && me.accuseVote == null) {
+    status(`🚨 ${name(a.by)}이(가) ${name(a.target)}을(를) 지목했어요!`, `${name(a.target)}이(가) 스파이일까요? 한 명이라도 반대하면 무산돼요.`, Object.assign({ alert: true }, clock));
+    return `<div class="p-box turn"><div class="vote-yn">
+        <button class="btn green" data-accuse-vote="yes">👍 찬성<small>스파이 같아요</small></button>
+        <button class="btn stamp" data-accuse-vote="no">👎 반대<small>아닌 것 같아요</small></button></div>
+      <p class="muted" style="font-size:13px;margin:10px 0 0;text-align:center">모두 찬성하면 ${name(a.target)}의 정체가 공개돼요. 시민이었으면 스파이가 이겨요!</p></div>`;
+  }
+  status(`🚨 ${name(a.by)} ➜ ${name(a.target)} 지목 투표 중`, me.accuseVote ? `찬성했어요. ${count}` : count, clock);
   return '';
 }
 
@@ -306,7 +337,14 @@ function renderOver(s) {
       <div class="muted" style="margin-bottom:12px">${myRole}</div>
       <div class="result-loc"><small>비밀 장소</small><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
       <div class="spy-reveal">🕵️ 스파이는 <b>${s.spies.map(p => esc(p.name)).join(', ')}</b>${me && me.spy ? ' (나!)' : ''}</div>
+      ${me ? myPointsHTML(s, me) : ''}
       <div class="muted" style="margin-top:10px;font-size:13px">선생님이 새 판을 시작하면 새 카드가 나와요.</div></div>`;
+}
+
+function myPointsHTML(s, me) {
+  const mine = s.points.filter(p => p.id === me.id);
+  return `<div class="my-points"><div class="gain">이번 판 <b>+${me.gain}점</b> · 내 점수 <b>${me.score}점</b></div>
+    ${mine.map(p => `<div class="why">+${p.pts} ${esc(p.why)}</div>`).join('')}</div>`;
 }
 
 function renderLocations(s) {
@@ -324,8 +362,11 @@ function notify(prev, s) {
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* 무시 */ } };
   if (prev.phase === 'lobby' && s.phase === 'play' && s.me.inRound) { buzz([120, 80, 120]); toast('🃏 비밀 카드가 나왔어요! 눌러서 확인하세요'); }
   if (s.myTurn && !prev.myTurn) buzz(200);
-  if (s.beingAsked === 'asking' && prev.beingAsked !== 'asking') { buzz([150, 80, 150]); toast(`👂 ${s.turn.asker.name}이(가) 너에게 질문해요!`); }
-  if (s.beingAsked === 'answer' && prev.beingAsked !== 'answer') buzz(200);
+  if (s.beingAsked === 'answer' && prev.beingAsked !== 'answer') { buzz([150, 80, 150]); toast(`💬 ${s.turn.asker.name}이(가) 너에게 질문해요!`); }
+  if (s.accuse && !prev.accuse) { buzz([250, 100, 250]); toast(`🚨 ${s.accuse.by.name}이(가) ${s.accuse.target.name}을(를) 지목했어요!`); }
+  const newAcc = s.accuseLog.filter(a => !prev.accuseLog.some(b => b.seq === a.seq));
+  newAcc.forEach(a => toast(a.result === 'fail' ? '지목 투표가 무산됐어요. 질문을 계속해요!'
+    : a.result === 'spy' ? `🎯 ${a.target.name}은(는) 스파이였어요!` : `${a.target.name}은(는) 시민이었어요...`));
   if (prev.phase === 'play' && s.phase === 'vote') { buzz([200, 100, 200]); toast('🗳 투표 시간이에요!'); }
   if (s.me.lastChance && !(prev.me && prev.me.lastChance)) buzz([300, 100, 300]);
 }

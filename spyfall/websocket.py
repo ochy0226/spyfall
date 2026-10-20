@@ -8,7 +8,7 @@ from flask_socketio import join_room
 from . import socketio
 from .game import get_game, games
 
-conns = {}  # sid -> {'game': 이름, 'pid': 학생 pid 또는 None, 'teacher': bool}
+conns = {}  # sid -> {'game': 이름, 'pid': 학생 pid 또는 None, 'teacher': bool, 'host': 선생님 열쇠가 맞는지}
 
 
 def broadcast(game):
@@ -16,7 +16,7 @@ def broadcast(game):
     for sid, c in list(conns.items()):
         if c['game'] != game.name:
             continue
-        socketio.emit('state', game.state(me=c['pid'], teacher=c['teacher']), to=sid)
+        socketio.emit('state', game.state(me=c['pid'], teacher=c['teacher'], host=c.get('host', False)), to=sid)
 
 
 def _current():
@@ -34,14 +34,16 @@ def _set_online(game, pid, delta):
 
 @socketio.on('watch')
 def watch(data):
-    """선생님 중계 화면 접속."""
-    game = get_game((data or {}).get('game'))
+    """선생님 중계 화면 접속. 게임을 만든 화면의 열쇠(key)가 맞아야 버튼을 쓰고 정답을 볼 수 있다."""
+    data = data or {}
+    game = get_game(data.get('game'))
     if not game:
         return {'error': 'nogame'}
-    conns[request.sid] = {'game': game.name, 'pid': None, 'teacher': True}
+    host = data.get('key') == game.teacher_key
+    conns[request.sid] = {'game': game.name, 'pid': None, 'teacher': True, 'host': host}
     join_room(game.name)
-    socketio.emit('state', game.state(teacher=True), to=request.sid)
-    return {'ok': True}
+    socketio.emit('state', game.state(teacher=True, host=host), to=request.sid)
+    return {'ok': True, 'host': host}
 
 
 @socketio.on('hello')
@@ -89,14 +91,19 @@ def unpick(*_):
     return _player_action(lambda g, pid: g.unpick(pid))
 
 
-@socketio.on('asked')
-def asked(*_):
-    return _player_action(lambda g, pid: g.asked_done(pid))
-
-
 @socketio.on('answered')
 def answered(*_):
     return _player_action(lambda g, pid: g.answered(pid))
+
+
+@socketio.on('accuse')
+def accuse(data):
+    return _player_action(lambda g, pid: g.accuse(pid, (data or {}).get('id')))
+
+
+@socketio.on('accuse_vote')
+def accuse_vote(data):
+    return _player_action(lambda g, pid: g.accuse_vote(pid, bool((data or {}).get('agree'))))
 
 
 @socketio.on('guess')
@@ -115,6 +122,8 @@ def teacher(data):
     c, game = _current()
     if not game or not c['teacher']:
         return {'error': '선생님 화면에서만 할 수 있어요.'}
+    if not c.get('host'):
+        return {'error': '게임을 만든 선생님 화면에서만 바꿀 수 있어요. (보기 전용 화면)'}
     data = data or {}
     action = data.get('action')
     err = None
@@ -137,6 +146,8 @@ def teacher(data):
         game.show_meaning = not game.show_meaning
     elif action == 'new_round':
         game.new_round()
+    elif action == 'reset_scores':
+        game.reset_scores()
     elif action == 'kick':
         pid = data.get('pid')
         if pid in game.players:

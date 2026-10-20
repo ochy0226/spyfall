@@ -38,6 +38,10 @@
         </div>
       </div>
       <div class="panel">
+        <h3><span>🏆 점수 랭킹</span><button class="link host-only" id="btnResetScores">점수 초기화</button></h3>
+        <ol class="scores" id="scoreList"></ol>
+      </div>
+      <div class="panel">
         <h3><span>참가 학생</span><span id="playerCount"></span></h3>
         <ul class="plist" id="playerList"></ul>
         <div class="muted" style="font-size:12px;margin-top:8px">숫자 = 질문 받은 횟수 · 이름에 마우스를 올리면 🎤 질문자로 지정 / ✕ 내보내기</div>
@@ -53,6 +57,15 @@
     </aside>
   </main>
 </div>
+
+<!-- 선생님만: 화면을 아래로 쭉 내려야 보이는 이번 판 정답 -->
+<section class="t-secret">
+  <div class="secret-inner">
+    <h2>🤫 선생님만 보기 <small>이번 판 정답 · 프로젝터를 다시 켜기 전에 위로 올려 두세요</small></h2>
+    <div id="secretBody"></div>
+    <button class="btn" style="margin-top:24px" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })">⬆ 맨 위로 (중계 화면)</button>
+  </div>
+</section>
 
 <div class="fx hidden" id="fx"></div>
 

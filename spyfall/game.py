@@ -1,9 +1,11 @@
 # 스파이폴 게임 상태와 규칙. 서버를 끄면 사라지는 메모리 저장 방식 (수업 한 시간 용도라 DB 불필요).
 # 반 전체가 한 게임: 모두 같은 장소를 받고, 스파이만 장소를 모른다.
-# 질문 차례: 질문자가 휴대폰에서 친구를 고르면(=그 친구에게 질문) 대답한 친구가 다음 질문자가 된다.
+# 질문 차례: 질문자가 휴대폰에서 친구를 고르고 말로 질문 → 대답한 친구가 "답변했어요"를 누르면 다음 질문자가 된다.
+# 누구나 한 판에 한 번 "지목 투표"를 열 수 있고, 판이 끝나면 점수가 쌓인다 (선생님 화면 랭킹).
 import math
 import os
 import random
+import secrets
 import threading
 import time
 
@@ -18,6 +20,18 @@ LAST_CHANCE_SECONDS = 40  # 잡힌 스파이가 장소를 맞히는 제한시간
 PACK_OPTIONS = {12: '12곳', 20: '20곳', 0: '전체'}  # 이번 판 장소 후보 개수 (0 = 전체)
 DEFAULT_PACK = 12
 MAX_SPIES = 3
+ACCUSE_SECONDS = 25       # 지목 투표 제한시간 (그동안 질문 시간은 멈춘다)
+
+# 점수표 (판이 끝나면 누적, 선생님 화면 랭킹에 표시)
+POINTS = {
+    'spy_hidden': 4,    # 스파이: 판이 끝날 때까지 안 들킴
+    'spy_guess': 3,     # 스파이: 질문 시간에 장소를 맞힘 (+ 빨리 맞힌 보너스 1~3)
+    'spy_last': 3,      # 스파이: 투표로 잡혔지만 마지막 기회에 장소를 맞힘
+    'vote_spy': 2,      # 시민: 시간이 끝난 뒤 투표에서 스파이를 고름
+    'accuse_spy': 2,    # 시민: 지목 투표로 스파이를 잡을 때 찬성함 (+ 빨리 잡은 보너스 1~3)
+    'accuser': 1,       # 시민: 그 지목 투표를 처음 연 사람 추가 점수
+    'citizen_win': 1,   # 시민: 시민 팀 승리
+}
 
 # 질문·대답 예시 (한글). 질문하는 학생 휴대폰과 선생님 화면에 몇 개씩 보여준다.
 QUESTIONS = [
@@ -61,11 +75,20 @@ def auto_spies(n: int) -> int:
     return 1 if n <= 8 else 2
 
 
+def speed_bonus(left, limit) -> int:
+    """질문 시간이 많이 남았을수록 큰 보너스: 2/3 넘게 남음 +3, 1/3 넘게 +2, 그 외 +1."""
+    if not left or not limit:
+        return 1
+    f = left / limit
+    return 3 if f >= 2 / 3 else 2 if f >= 1 / 3 else 1
+
+
 class Game:
     def __init__(self, name: str, minutes: int = DEFAULT_MINUTES, pack: int = DEFAULT_PACK):
         self.name = name
         self.lock = threading.RLock()
-        self.players = {}  # pid -> {'id', 'name', 'online', 'spied'(스파이 해 본 횟수)}
+        self.teacher_key = secrets.token_urlsafe(9)  # 이 값을 가진 화면만 선생님 버튼·정답 보기 가능
+        self.players = {}  # pid -> {'id', 'name', 'online', 'spied'(스파이 해 본 횟수), 'score'(누적 점수)}
         self.next_id = 1
         self.round = 0
         self.minutes = minutes if minutes in MINUTE_OPTIONS else DEFAULT_MINUTES
@@ -84,19 +107,25 @@ class Game:
             self.location = None
             self.roles = {}       # pid -> {'spy': bool, 'role': {'name','meaning'} 또는 None}
             self.spies = []
-            self.out = set()      # 장소를 틀리게 추측해서 정체가 드러난 스파이
-            self.turn = None      # {'asker', 'from', 'target', 'stage'('choose'|'asking'|'answer'), 'seq', 'q'}
+            self.out = set()      # 정체가 드러난 스파이 (장소를 틀림 / 지목 투표로 잡힘)
+            self.accused_out = set()  # 그중 지목 투표로 잡힌 스파이
+            self.turn = None      # {'asker', 'from', 'target', 'stage'('choose'|'answer'), 'seq', 'q', 'seed'}
             self.history = []     # [{'asker', 'target'}] (pid)
             self.asked = {}       # pid -> 이번 판에 질문 받은 횟수
             self.deadline = None
             self.paused_left = None
             self.time_limit = 0
+            self.accusing = None    # 진행 중인 지목 투표 {'by', 'target', 'votes': {pid: bool}, 'deadline', 'seq'}
+            self.accused_by = set()  # 이번 판에 지목 투표를 이미 연 학생 (한 판에 한 번)
+            self.accuse_log = []  # [{'seq', 'by', 'target', 'result'('fail'|'spy'|'citizen'), 'opposed', 'timeout'}]
+            self.play_left = None  # 지목 투표 동안 멈춰 둔 질문 시간
             self.votes = {}
             self.vote_n = 0
             self.tally = []
             self.caught = []
             self.last_guesses = {}
             self.events = []      # 스파이 추측 기록 [{'seq', 'pid', 'guess', 'correct', 'when'('play'|'last')}]
+            self.points = []      # 이번 판에 받은 점수 [{'pid', 'pts', 'why'}]
             self.winner = None
             self.win_reason = None
             self.log = []
@@ -135,6 +164,13 @@ class Game:
             self._pick_candidates()
         return None
 
+    def reset_scores(self):
+        with self.lock:
+            for p in self.players.values():
+                p['score'] = 0
+            self.points = []
+            self._log('선생님이 점수를 모두 0점으로 바꿨어요.')
+
     def spy_count(self) -> int:
         if self.phase != 'lobby':
             return len(self.spies)
@@ -163,7 +199,7 @@ class Game:
                 self._deal(pid)
             self.phase = 'play'
             self._set_timer(self.minutes * 60)
-            self.turn = self._new_turn(self._random_asker())
+            self._new_turn(self._random_asker())
             self._log(f'게임 시작! 스파이 {k}명이 숨어 있어요. 첫 질문은 {self._nm(self.turn["asker"])}.')
         return None
 
@@ -191,7 +227,7 @@ class Game:
             if p:
                 p['name'] = name
             else:
-                self.players[pid] = {'id': self.next_id, 'name': name, 'online': 1, 'spied': 0}
+                self.players[pid] = {'id': self.next_id, 'name': name, 'online': 1, 'spied': 0, 'score': 0}
                 self.next_id += 1
                 # 게임 도중 들어온 학생은 시민으로 참가 (투표·결과 단계면 다음 판부터)
                 if self.phase == 'play':
@@ -203,17 +239,24 @@ class Game:
         with self.lock:
             if pid not in self.players:
                 return
+            a = self.accusing
             del self.players[pid]
             self.roles.pop(pid, None)
             self.votes.pop(pid, None)
             for k, v in list(self.votes.items()):
                 if v == pid:
                     del self.votes[k]
-            if pid in self.spies and self.phase == 'play':
+            if self.phase != 'play':
+                return
+            if a and pid in (a['target'], a['by']):
+                self._accuse_end(False)
+            if pid in self.spies:
                 self.out.add(pid)  # 나간 스파이는 더 이상 게임에 영향을 주지 않는다
-                self._check_all_spies_out()
-            if self.phase == 'play':
-                self._fix_turn(pid)
+                if self._check_all_spies_out():
+                    return
+            self._fix_turn(pid)
+            if self.accusing:
+                self._accuse_check()
 
     def _fix_turn(self, pid):
         """pid가 나가거나 정체가 드러났을 때 질문 차례가 멈추지 않게 정리한다."""
@@ -248,11 +291,13 @@ class Game:
         return random.choice([p for p in pool if self.asked.get(p, 0) == low])
 
     # ---------- 질문 차례 ----------
-    # 1) 질문자가 친구를 고른다(choose → asking)  2) 한글로 질문하고 "질문했어요"(asking → answer)
-    # 3) 질문 받은 친구가 대답하고 "답변했어요" → 그 친구가 다음 질문자(choose)
+    # 1) 질문자가 친구를 고르고 바로 말로 질문 (choose → answer)
+    # 2) 질문 받은 친구가 대답하고 "답변했어요" → 그 친구가 다음 질문자(choose)
     def _turn_check(self, pid, stage, who='asker'):
         if self.phase != 'play':
             return '지금은 질문 시간이 아니에요.'
+        if self.accusing:
+            return '지목 투표가 끝날 때까지 기다려 주세요.'
         if self.paused_left is not None:
             return '선생님이 시간을 멈췄어요.'
         t = self.turn
@@ -261,9 +306,9 @@ class Game:
         return None
 
     def ask(self, pid, target_id) -> str:
-        """질문할 친구 고르기 (질문하기 전이면 다시 고를 수도 있다)."""
+        """질문할 친구 고르기 = 그 친구에게 질문 시작."""
         with self.lock:
-            err = self._turn_check(pid, ('choose', 'asking'))
+            err = self._turn_check(pid, ('choose',))
             if err:
                 return err
             target = self.pid_of(target_id)
@@ -272,29 +317,23 @@ class Game:
                 return '그 친구에게는 질문할 수 없어요.'
             if target == self.turn.get('from') and len(active) > 2:
                 return '방금 나에게 질문한 친구에게는 다시 질문할 수 없어요.'
-            self.event_seq += 1
-            self.turn.update(target=target, stage='asking', seq=self.event_seq)
-        return None
-
-    def unpick(self, pid) -> str:
-        with self.lock:
-            err = self._turn_check(pid, ('asking',))
-            if err:
-                return err
-            self.turn.update(target=None, stage='choose')
-        return None
-
-    def asked_done(self, pid) -> str:
-        """질문자가 "질문했어요"를 눌렀다."""
-        with self.lock:
-            err = self._turn_check(pid, ('asking',))
-            if err:
-                return err
-            target = self.turn['target']
             self.history.append({'asker': pid, 'target': target})
             self.asked[target] = self.asked.get(target, 0) + 1
             self.event_seq += 1
-            self.turn.update(stage='answer', seq=self.event_seq)
+            self.turn.update(target=target, stage='answer', seq=self.event_seq)
+        return None
+
+    def unpick(self, pid) -> str:
+        """잘못 골랐을 때 (상대가 대답하기 전) 다시 고르기."""
+        with self.lock:
+            err = self._turn_check(pid, ('answer',))
+            if err:
+                return err
+            target = self.turn['target']
+            if self.history and self.history[-1] == {'asker': pid, 'target': target}:
+                self.history.pop()
+                self.asked[target] = max(0, self.asked.get(target, 1) - 1)
+            self.turn.update(target=None, stage='choose')
         return None
 
     def answered(self, pid) -> str:
@@ -311,6 +350,8 @@ class Game:
         with self.lock:
             if self.phase != 'play':
                 return '게임 중에만 할 수 있어요.'
+            if self.accusing:
+                return '지목 투표가 끝난 뒤에 바꿔 주세요.'
             if pid is None:
                 pid = self._random_asker(exclude=self.turn and self.turn['asker'])
             if pid not in self._active():
@@ -318,6 +359,92 @@ class Game:
             self._new_turn(pid)
             self._log(f'선생님이 질문자를 {self._nm(pid)}(으)로 바꿨어요.')
         return None
+
+    # ---------- 지목 투표 (원작 규칙: 누구나 한 판에 한 번, 지목당한 사람 빼고 모두 찬성해야 성공) ----------
+    def accuse(self, pid, target_id) -> str:
+        with self.lock:
+            if self.phase != 'play':
+                return '질문 시간에만 지목할 수 있어요.'
+            if self.accusing:
+                return '이미 지목 투표가 진행 중이에요.'
+            if self.paused_left is not None:
+                return '선생님이 시간을 멈췄어요.'
+            active = self._active()
+            if pid not in active:
+                return '이번 판에는 지목할 수 없어요.'
+            if pid in self.accused_by:
+                return '지목은 한 판에 한 번만 할 수 있어요.'
+            target = self.pid_of(target_id)
+            if not target or target not in active or target == pid:
+                return '그 친구는 지목할 수 없어요.'
+            self.accused_by.add(pid)
+            self.play_left = self.time_left()
+            self.deadline = None  # 지목 투표 동안 질문 시간은 멈춘다
+            self.event_seq += 1
+            self.accusing = {'by': pid, 'target': target, 'votes': {pid: True},
+                           'deadline': time.time() + ACCUSE_SECONDS, 'seq': self.event_seq}
+            self._log(f'🚨 {self._nm(pid)}이(가) {self._nm(target)}을(를) 스파이로 지목했어요!')
+            self._accuse_check()
+        return None
+
+    def _accuse_voters(self):
+        a = self.accusing
+        return [p for p in self._active() if p != a['target'] and (self.players[p]['online'] > 0 or p == a['by'])]
+
+    def accuse_vote(self, pid, agree) -> str:
+        with self.lock:
+            a = self.accusing
+            if self.phase != 'play' or not a:
+                return '지금은 지목 투표 중이 아니에요.'
+            if pid == a['target']:
+                return '지목당한 사람은 투표할 수 없어요.'
+            if pid not in self._active():
+                return '이번 판에는 투표할 수 없어요.'
+            if pid in a['votes']:
+                return '이미 투표했어요.'
+            a['votes'][pid] = bool(agree)
+            if not agree:
+                self._accuse_end(False)
+            else:
+                self._accuse_check()
+        return None
+
+    def _accuse_check(self):
+        a = self.accusing
+        if a and all(a['votes'].get(p) for p in self._accuse_voters()):
+            self._accuse_end(True)
+
+    def _accuse_end(self, success, timeout=False):
+        a = self.accusing
+        self.accusing = None
+        target = a['target']
+        opposed = [p for p, v in a['votes'].items() if v is False]
+        result = 'fail' if not success else ('spy' if target in self.spies else 'citizen')
+        self.event_seq += 1
+        self.accuse_log.append({'seq': self.event_seq, 'by': a['by'], 'target': target, 'result': result,
+                                'opposed': opposed, 'timeout': timeout})
+        if result == 'citizen':
+            self._finish('spy', f'{self._nm(target)}은(는) 시민이었어요! 엉뚱한 사람을 지목해서 스파이 승리!')
+            return
+        if result == 'spy':
+            bonus = speed_bonus(self.play_left, self.time_limit)
+            for p, v in a['votes'].items():
+                if v and p in self.players and p not in self.spies:
+                    self._award(p, POINTS['accuse_spy'] + bonus, f'지목 투표로 스파이를 잡음 (빨리 잡은 보너스 +{bonus})')
+            if a['by'] not in self.spies:
+                self._award(a['by'], POINTS['accuser'], '스파이를 처음 지목함')
+            self.out.add(target)
+            self.accused_out.add(target)
+            self._log(f'🎯 지목 성공! {self._nm(target)}은(는) 스파이였어요!')
+            if self._check_all_spies_out():
+                return
+            self._fix_turn(target)
+        else:
+            why = '시간 안에 모두 찬성하지 않았어요' if timeout else f'{", ".join(self._nm(p) for p in opposed)} 반대'
+            self._log(f'지목 투표 무산 ({why}). 질문을 계속해요.')
+        # 멈춰 둔 질문 시간을 다시 흐르게
+        self.deadline = time.time() + (self.play_left or 0)
+        self.play_left = None
 
     # ---------- 스파이의 장소 추측 ----------
     def spy_guess(self, pid, loc_name) -> str:
@@ -328,11 +455,15 @@ class Game:
             if self.phase == 'play':
                 if pid not in self.spies or pid in self.out:
                     return '스파이만 장소를 맞힐 수 있어요.'
+                if self.accusing:
+                    return '지목 투표가 끝난 뒤에 맞힐 수 있어요.'
                 if self.paused_left is not None:
                     return '선생님이 시간을 멈췄어요.'
                 correct = loc is self.location
                 self._event(pid, loc_name, correct, 'play')
                 if correct:
+                    bonus = speed_bonus(self.time_left(), self.time_limit)
+                    self._award(pid, POINTS['spy_guess'] + bonus, f'질문 시간에 장소를 맞힘 (빨리 맞힌 보너스 +{bonus})')
                     self._finish('spy', f'스파이 {self._nm(pid)}이(가) 장소를 맞혔어요!')
                 else:
                     self.out.add(pid)
@@ -354,7 +485,7 @@ class Game:
 
     def _check_all_spies_out(self) -> bool:
         if self.phase == 'play' and all(p in self.out for p in self.spies):
-            self._finish('citizen', '스파이가 모두 장소를 틀려서 정체가 드러났어요!')
+            self._finish('citizen', '스파이를 모두 찾아냈어요!' if self.accused_out else '스파이가 모두 장소를 틀려서 정체가 드러났어요!')
             return True
         return False
 
@@ -362,11 +493,13 @@ class Game:
         self.event_seq += 1
         self.events.append({'seq': self.event_seq, 'pid': pid, 'guess': guess, 'correct': correct, 'when': when})
 
-    # ---------- 투표 ----------
+    # ---------- 시간이 끝난 뒤 투표 ----------
     def start_vote(self, by_timeout=False) -> str:
         with self.lock:
             if self.phase != 'play':
                 return '게임 중에만 투표를 시작할 수 있어요.'
+            if self.accusing:
+                return '지목 투표가 끝난 뒤에 시작해 주세요.'
             self.phase = 'vote'
             self.votes = {}
             self.vote_n = len([p for p in self.spies if p not in self.out])
@@ -412,9 +545,15 @@ class Game:
             self._resolve()
 
     def _resolve(self):
+        # 투표에서 스파이를 고른 시민에게 점수
+        for voter, target in self.votes.items():
+            if voter in self.players and voter not in self.spies and target in self.spies:
+                self._award(voter, POINTS['vote_spy'], '투표에서 스파이를 골라냄')
         caught_spies = [p for p in self.caught if p in self.spies]
         lucky = [p for p in caught_spies if self.last_guesses.get(p) == self.location['name']]
         need = math.ceil(self.vote_n / 2) if self.vote_n else 1
+        for p in lucky:
+            self._award(p, POINTS['spy_last'], '잡혔지만 마지막 기회에 장소를 맞힘')
         if lucky:
             self._finish('spy', f'잡혔지만 {self._nm(lucky[0])}이(가) 장소를 맞혀서 스파이 역전승!')
         elif len(caught_spies) >= need:
@@ -426,13 +565,30 @@ class Game:
             self._finish('spy', f'진짜 스파이 {names}을(를) 찾지 못했어요!')
 
     def _finish(self, winner, reason):
+        if self.phase == 'over':
+            return
         self.phase = 'over'
         self.winner = winner
         self.win_reason = reason
         self.deadline = None
         self.paused_left = None
+        self.accusing = None
         self.turn = None
+        guessed = {e['pid'] for e in self.events if e['correct']}
+        for p in self.spies:  # 판이 끝날 때까지 정체가 안 드러난 스파이
+            if p not in self.out and p not in self.caught and p not in guessed:
+                self._award(p, POINTS['spy_hidden'], '끝까지 안 들킴')
+        if winner == 'citizen':
+            for p, r in self.roles.items():
+                if not r['spy']:
+                    self._award(p, POINTS['citizen_win'], '시민 팀 승리')
         self._log(('🕵️ 스파이 승리! ' if winner == 'spy' else '🎉 시민 승리! ') + reason)
+
+    def _award(self, pid, pts, why):
+        p = self.players.get(pid)
+        if p and pts:
+            p['score'] = p.get('score', 0) + pts
+            self.points.append({'pid': pid, 'pts': pts, 'why': why})
 
     # ---------- 제한시간 ----------
     def _set_timer(self, seconds):
@@ -451,6 +607,8 @@ class Game:
         with self.lock:
             if self.phase not in ('play', 'vote', 'last'):
                 return '지금은 시간을 멈출 수 없어요.'
+            if self.accusing:
+                return '지목 투표 중에는 시간이 이미 멈춰 있어요.'
             if self.paused_left is None:
                 self.paused_left = self.time_left()
                 self.deadline = None
@@ -463,6 +621,11 @@ class Game:
 
     def check_timeout(self) -> bool:
         with self.lock:
+            if self.accusing:
+                if time.time() >= self.accusing['deadline']:
+                    self._accuse_end(False, timeout=True)
+                    return True
+                return False
             if self.deadline is None or time.time() < self.deadline:
                 return False
             self.timeouts += 1
@@ -497,10 +660,13 @@ class Game:
         p = self.players.get(pid)
         return {'id': p['id'], 'name': p['name']} if p else {'id': None, 'name': '(나간 학생)'}
 
-    def state(self, me=None, teacher=False) -> dict:
+    def state(self, me=None, teacher=False, host=False) -> dict:
         with self.lock:
             over = self.phase == 'over'
             reveal = self.phase in ('last', 'over')  # 투표로 잡힌 학생의 정체 공개
+            gains = {}
+            for pt in self.points:
+                gains[pt['pid']] = gains.get(pt['pid'], 0) + pt['pts']
             players = []
             for pid, p in self.players.items():
                 r = self.roles.get(pid)
@@ -509,6 +675,7 @@ class Game:
                     'inRound': r is not None, 'out': pid in self.out,
                     'asked': self.asked.get(pid, 0),
                     'voted': self.phase == 'vote' and pid in self.votes,
+                    'score': p.get('score', 0), 'gain': gains.get(pid, 0),
                 }
                 if pid in self.out or (reveal and pid in self.caught) or over:
                     item['spy'] = bool(r and r['spy'])
@@ -544,12 +711,26 @@ class Game:
                 'questions': len(self.history),
                 'history': [{'asker': self._pub(h['asker']), 'target': self._pub(h['target'])} for h in self.history[-12:]],
                 'events': events,
+                'accuseLog': [{'seq': a['seq'], 'by': self._pub(a['by']), 'target': self._pub(a['target']),
+                               'result': a['result'], 'timeout': a['timeout'],
+                               'opposed': [self._pub(p) for p in a['opposed']]} for a in self.accuse_log],
+                'points': [dict(self._pub(pt['pid']), pts=pt['pts'], why=pt['why']) for pt in self.points],
                 'timeLeft': self.time_left(), 'timeLimit': self.time_limit, 'paused': self.paused_left is not None,
                 'timeouts': self.timeouts,
                 'voteCount': len(self.votes), 'voteNeed': len([p for p in self._active() if self.players[p]['online'] > 0]),
                 'voteN': self.vote_n,
+                'host': host,
                 'log': self.log[-30:],
             }
+            a = self.accusing
+            if a:
+                voters = self._accuse_voters()
+                s['accuse'] = {'by': self._pub(a['by']), 'target': self._pub(a['target']), 'seq': a['seq'],
+                               'agree': len([p for p in voters if a['votes'].get(p)]), 'need': len(voters)}
+                # 지목 투표 동안은 화면 시계가 투표 남은 시간을 보여준다
+                s['timeLeft'] = max(0.0, a['deadline'] - time.time())
+                s['timeLimit'] = ACCUSE_SECONDS
+                s['paused'] = False
             if reveal:
                 s['tally'] = [dict(self._pub(t['pid']), votes=t['votes'], spy=t['pid'] in self.spies) for t in self.tally]
                 s['caught'] = [dict(self._pub(p), spy=p in self.spies) for p in self.caught]
@@ -560,16 +741,31 @@ class Game:
                 s['location'] = {'name': loc['name'], 'meaning': loc['meaning'], 'icon': loc['icon'], 'roles': loc['roles']} if loc else None
                 s['winner'] = self.winner
                 s['winReason'] = self.win_reason
-                s['spies'] = [dict(self._pub(p), out=p in self.out, caught=p in self.caught,
+                s['spies'] = [dict(self._pub(p), out=p in self.out, accused=p in self.accused_out, caught=p in self.caught,
                                    guess=self.last_guesses.get(p)) for p in self.spies]
+            if host and self.location and self.phase != 'lobby':
+                # 선생님 화면 맨 아래(스크롤해야 보이는 곳)에만 쓰는 정답
+                loc = self.location
+                s['secret'] = {
+                    'location': {'name': loc['name'], 'meaning': loc['meaning'], 'icon': loc['icon']},
+                    'spies': [dict(self._pub(p), out=p in self.out) for p in self.spies],
+                    'roles': [dict(self._pub(p), spy=r['spy'], role=r['role']) for p, r in self.roles.items() if p in self.players],
+                }
             if me and me in self.players:
                 p = self.players[me]
                 r = self.roles.get(me)
                 mine = {'id': p['id'], 'name': p['name'], 'inRound': r is not None,
-                        'spy': bool(r and r['spy']), 'out': me in self.out}
+                        'spy': bool(r and r['spy']), 'out': me in self.out,
+                        'score': p.get('score', 0), 'gain': gains.get(me, 0),
+                        'canAccuse': self.phase == 'play' and not a and me in self._active() and me not in self.accused_by,
+                        'usedAccuse': me in self.accused_by}
                 if r and not r['spy']:
                     mine['role'] = r['role']
                     mine['location'] = {'name': self.location['name'], 'meaning': self.location['meaning'], 'icon': self.location['icon']}
+                if a:
+                    mine['accuseRole'] = 'by' if me == a['by'] else 'target' if me == a['target'] \
+                        else 'voter' if me in self._accuse_voters() else None
+                    mine['accuseVote'] = a['votes'].get(me)
                 if self.phase == 'vote' and me in self.votes:
                     mine['vote'] = self.players[self.votes[me]]['id'] if self.votes[me] in self.players else None
                 if self.phase == 'last':
@@ -581,7 +777,7 @@ class Game:
                     rnd = random.Random(t['seed'])  # 같은 차례 동안은 예시가 바뀌지 않게
                     s['askSample'] = rnd.sample(QUESTIONS, 3)
                 if t and t.get('target') == me:
-                    s['beingAsked'] = t['stage']  # 'asking'(질문 듣는 중) 또는 'answer'(대답할 차례)
+                    s['beingAsked'] = t['stage']  # 'answer' = 대답할 차례
                     s['answerSample'] = random.Random(t['seed']).sample(ANSWERS, 4)
             return s
 
@@ -596,9 +792,11 @@ def get_game(name):
     return games.get(str(name))
 
 
-def create_game(name: str, minutes: int, pack: int) -> Game:
+def create_game(name: str, minutes: int, pack: int):
+    """새 게임을 만든다. 이미 있는 코드면 (기존 게임, False)."""
     with _games_lock:
         g = games.get(name)
-        if g is None:
-            g = games[name] = Game(name, minutes, pack)
-        return g
+        if g is not None:
+            return g, False
+        g = games[name] = Game(name, minutes, pack)
+        return g, True

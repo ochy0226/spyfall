@@ -8,6 +8,7 @@
       <div><b>스파이폴</b><small>선생님 · 새 게임 만들기</small></div>
     </div>
     <form class="panel" method="post" style="padding:22px">
+      {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
       <div class="field">
         <label for="name">게임 코드 <small style="color:var(--muted);font-weight:400">(학생들이 입력할 코드, 예: 3반)</small></label>
         <input class="input" id="name" name="name" value="{{ suggested }}" maxlength="20" autocomplete="off">

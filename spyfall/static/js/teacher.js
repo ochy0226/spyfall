@@ -8,9 +8,20 @@ let playersPainted = false; // 처음 화면을 열 때는 이미 있던 학생�
 
 $('#rulesBody').innerHTML = rulesHTML();
 
+// 선생님 열쇠: 게임을 만들 때 주소에 붙어 오면 이 브라우저에 저장하고 주소창에서는 지운다.
+// 열쇠가 있는 화면만 버튼을 쓰고, 맨 아래 정답(장소·스파이)을 볼 수 있다.
+const params = new URLSearchParams(location.search);
+let KEY = params.get('k');
+try {
+  if (KEY) localStorage.setItem('sf_key_' + GAME, KEY);
+  else KEY = localStorage.getItem('sf_key_' + GAME);
+} catch (e) { /* 저장이 막혀 있으면 이번 화면에서만 */ }
+if (params.has('k')) history.replaceState(null, '', location.pathname);
+
 socket.on('connect', () => {
-  socket.emit('watch', { game: GAME }, res => {
+  socket.emit('watch', { game: GAME, key: KEY }, res => {
     if (res && res.error) location.href = '/teacher';
+    else if (res && !res.host) toast('보기 전용 화면이에요. 버튼은 게임을 만든 화면에서만 쓸 수 있어요.');
   });
 });
 socket.on('disconnect', () => toast('서버 연결이 끊겼어요. 다시 연결하는 중...', 'error'));
@@ -49,6 +60,7 @@ document.addEventListener('click', e => {
   if (k && confirm('이 학생을 내보낼까요? (다시 들어올 수 있어요)')) act('kick', { pid: k.dataset.kick });
   const q = e.target.closest('[data-asker]');
   if (q) act('asker', { pid: q.dataset.asker });
+  if (e.target.closest('#btnResetScores') && confirm('모든 학생의 점수를 0점으로 바꿀까요?')) act('reset_scores');
 });
 
 const name = p => esc(p ? p.name : '');
@@ -62,10 +74,13 @@ function render(s, prev) {
   $('#btnAsker').disabled = s.phase !== 'play';
   $('#btnVote').disabled = s.phase !== 'play';
   document.body.classList.toggle('no-meaning', !s.showMeaning && s.phase !== 'over');
+  document.body.classList.toggle('viewer', !s.host);
 
   renderStage(s, prev);
   renderLocations(s);
   renderPlayers(s);
+  renderScores(s, prev);
+  renderSecret(s);
 
   $('#qCount').textContent = s.questions ? s.questions + '개' : '';
   const base = s.questions - s.history.length;
@@ -112,18 +127,28 @@ function renderStage(s, prev) {
       </div>`;
     return;
   }
+  if (s.phase === 'play' && s.accuse) {
+    const a = s.accuse;
+    const pct = a.need ? Math.round(a.agree / a.need * 100) : 0;
+    el.classList.add('dark');
+    el.innerHTML = `${clockHTML('지목 투표')}<div class="grow">
+        <div class="s-title">🚨 ${name(a.by)}이(가) <span style="color:#ff9c92">${name(a.target)}</span>을(를) 스파이로 지목!</div>
+        <div class="s-sub">휴대폰에서 찬성 / 반대 투표 중 · <b style="color:#fff">한 명이라도 반대하면 무산</b>, 모두 찬성하면 정체 공개!
+          (질문 시간은 멈춰 있어요)</div>
+        <div class="progress"><i style="width:${pct}%"></i></div>
+        <div class="s-sub" style="margin-top:6px">찬성 ${a.agree} / ${a.need}명</div>
+      </div>`;
+    return;
+  }
   if (s.phase === 'play') {
     const t = s.turn;
     let qa;
     if (!t) {
       qa = `<div class="s-title">질문할 학생이 없어요</div><div class="s-sub">🎲 질문자 바꾸기를 눌러 주세요.</div>`;
-    } else if (t.stage === 'asking') {
-      qa = `<div class="qa"><span class="who">🎤 ${name(t.asker)}</span><span class="arrow">➜</span><span class="who">${name(t.target)}</span></div>
-        <div class="q-example">💬 질문 예시: <b>${esc(t.question)}</b></div>
-        <div class="s-sub"><b>${name(t.asker)}</b> 학생이 질문하는 중<span class="dots"></span> 다 물어보면 휴대폰에서 "질문했어요"</div>`;
     } else if (t.stage === 'answer') {
-      qa = `<div class="qa"><span class="who">${name(t.asker)}</span><span class="arrow">➜</span><span class="who">💬 ${name(t.target)}</span></div>
-        <div class="s-sub"><b>${name(t.target)}</b> 학생이 대답하는 중<span class="dots"></span> 다 대답하면 휴대폰에서 "답변했어요" → 다음 질문자가 돼요</div>`;
+      qa = `<div class="qa"><span class="who">🎤 ${name(t.asker)}</span><span class="arrow">➜</span><span class="who">💬 ${name(t.target)}</span></div>
+        <div class="q-example">💬 질문 예시: <b>${esc(t.question)}</b></div>
+        <div class="s-sub"><b>${name(t.asker)}</b> 학생이 질문 → <b>${name(t.target)}</b> 학생이 대답한 뒤 "답변했어요"를 누르면 다음 질문자가 돼요</div>`;
     } else {
       qa = `<div class="qa"><span class="who">🎤 ${name(t.asker)}</span><span class="arrow">➜</span><span class="who wait">?</span></div>
         <div class="s-sub"><b>${name(t.asker)}</b> 학생이 휴대폰에서 질문할 친구를 고르는 중${t.from ? ` · 방금 질문한 ${name(t.from)} 학생은 고를 수 없어요` : ''}</div>`;
@@ -133,7 +158,7 @@ function renderStage(s, prev) {
       <div class="stat"><b>${s.questions}</b><span>질문 수</span></div></div>`;
     if (prev && prev.turn && t && prev.turn.seq !== t.seq) {
       el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
-      if (t.stage === 'asking') sound('ask');
+      if (t.stage === 'answer') sound('ask');
     }
     return;
   }
@@ -197,11 +222,53 @@ function renderPlayers(s) {
   playersPainted = true;
 }
 
+function renderScores(s, prev) {
+  const list = s.players.slice().sort((a, b) => b.score - a.score || a.id - b.id);
+  const medal = ['🥇', '🥈', '🥉'];
+  let rank = 0, last = null;
+  $('#scoreList').innerHTML = list.length ? list.map((p, i) => {
+    if (p.score !== last) { rank = i + 1; last = p.score; }
+    const before = prev && prev.round === s.round ? (prev.players.find(x => x.id === p.id) || {}).score : p.score;
+    const up = before != null && p.score > before;
+    return `<li class="${up ? 'up' : ''}"><span class="rk">${rank <= 3 && p.score > 0 ? medal[rank - 1] : rank}</span>
+      <span class="nm">${esc(p.name)}</span>${p.gain ? `<span class="gain">+${p.gain}</span>` : ''}<b>${p.score}</b></li>`;
+  }).join('') : '<li class="muted">아직 없어요</li>';
+}
+
+function renderSecret(s) {
+  const el = $('#secretBody');
+  if (!s.host) {
+    el.innerHTML = '<p>정답은 게임을 만든 선생님 화면에서만 보여요.</p>';
+    return;
+  }
+  if (!s.secret) {
+    el.innerHTML = '<p>게임이 시작되면 이번 판의 비밀 장소와 스파이가 여기에 나와요.</p>';
+    return;
+  }
+  const sc = s.secret;
+  el.innerHTML = `<div class="secret-grid">
+      <div class="secret-loc"><span class="big-ic">${esc(sc.location.icon)}</span><span class="en">${esc(sc.location.name)}</span><span class="ko">${esc(sc.location.meaning)}</span></div>
+      <div><h3>🕵️ 스파이</h3><div class="secret-spies">${sc.spies.map(p => `<span>${esc(p.name)}${p.out ? ' (들킴)' : ''}</span>`).join('')}</div>
+        <h3 style="margin-top:16px">역할 카드</h3><div class="role-grid">${sc.roles.map(r => r.spy
+          ? `<div class="spy"><b>${esc(r.name)}</b><span>🕵️ 스파이</span></div>`
+          : `<div><b>${esc(r.name)}</b><span>${esc(r.role ? r.role.meaning : '')}</span></div>`).join('')}</div></div>
+    </div>`;
+}
+
+function pointsHTML(s) {
+  if (!s.points.length) return '';
+  const by = {};
+  s.points.forEach(p => { (by[p.id] = by[p.id] || { name: p.name, items: [], sum: 0 }).items.push(p); by[p.id].sum += p.pts; });
+  const rows = Object.values(by).sort((a, b) => b.sum - a.sum).map(r =>
+    `<div><b>${esc(r.name)} <em>+${r.sum}</em></b><span>${r.items.map(i => esc(i.why)).join(' · ')}</span></div>`).join('');
+  return `<div style="margin-top:18px"><h3 style="font-size:14px;color:var(--muted);margin:0 0 8px">이번 판 점수</h3><div class="role-grid points">${rows}</div></div>`;
+}
+
 function resultHTML(s) {
   const spyWin = s.winner === 'spy';
   const max = Math.max(1, ...(s.tally || []).map(t => t.votes));
   const spyRows = s.spies.map(p => {
-    const how = p.out ? '장소를 틀리게 추측해서 들킴' : p.caught ? (p.guess ? `투표로 잡힘 · 마지막 추측: ${esc(p.guess)}` : '투표로 잡힘') : '끝까지 숨었어요!';
+    const how = p.accused ? '지목 투표로 잡힘' : p.out ? '장소를 틀리게 추측해서 들킴' : p.caught ? (p.guess ? `투표로 잡힘 · 마지막 추측: ${esc(p.guess)}` : '투표로 잡힘') : '끝까지 숨었어요!';
     return `<div class="spy-row"><b>🕵️ ${esc(p.name)}</b><small>${how}</small></div>`;
   }).join('');
   const tally = (s.tally || []).slice(0, 8).map(t => `<div class="row ${t.spy ? 'spy' : ''}"><span class="nm">${esc(t.name)}${t.spy ? ' 🕵️' : ''}</span>
@@ -216,6 +283,7 @@ function resultHTML(s) {
       <div><h3>스파이 ${s.spies.length}명</h3><div class="spy-list">${spyRows}</div></div>
       <div><h3>투표 결과</h3><div class="tally">${tally}</div></div>
     </div>
+    ${pointsHTML(s)}
     <div style="margin-top:18px"><h3 style="font-size:14px;color:var(--muted);margin:0 0 8px">우리 반 역할 카드</h3><div class="role-grid">${roles}</div></div>
     <div class="modal-actions"><button class="btn" data-close="resultModal">닫기</button>
       <button class="btn primary" onclick="$('#btnNewRound').click()">새 판 시작</button></div>`;
@@ -241,6 +309,9 @@ function queueEffects(prev, s) {
   const seen = new Set(prev.events.map(e => e.seq));
   if (prev.phase === 'lobby' && s.phase === 'play') fxQueue.push({ kind: 'start', s });
   s.events.filter(e => !seen.has(e.seq) && e.when === 'play').forEach(e => fxQueue.push({ kind: 'guess', e, s }));
+  if (s.accuse && (!prev.accuse || prev.accuse.seq !== s.accuse.seq)) fxQueue.push({ kind: 'accuse', a: s.accuse });
+  const seenAcc = new Set(prev.accuseLog.map(a => a.seq));
+  s.accuseLog.filter(a => !seenAcc.has(a.seq)).forEach(a => fxQueue.push({ kind: 'accuseResult', a }));
   if (prev.phase === 'play' && s.phase === 'vote') fxQueue.push({ kind: 'vote', timeout: s.timeouts > prev.timeouts });
   if (prev.phase === 'vote' && (s.phase === 'last' || s.phase === 'over') && s.caught) fxQueue.push({ kind: 'tally', s });
   if (prev.phase === 'vote' && s.phase === 'last') fxQueue.push({ kind: 'last', s });
@@ -326,6 +397,35 @@ function runFx() {
       sound(e.correct ? 'spywin' : 'bad');
     }, 2000));
     ms = 4200;
+  } else if (job.kind === 'accuse') {
+    const a = job.a;
+    box.innerHTML = `<div><div class="fx-label">🚨 지목! ${name(a.by)}의 선택은...</div>
+      <div class="fx-guess">${name(a.target)}?</div>
+      <div class="fx-sub">휴대폰으로 찬성 / 반대! 한 명이라도 반대하면 무산, 모두 찬성하면 정체 공개!</div></div>`;
+    sound('alarm');
+    ms = 3000;
+  } else if (job.kind === 'accuseResult') {
+    const a = job.a;
+    if (a.result === 'fail') {
+      box.innerHTML = `<div class="fx-band ink">지목 무산!<small>${a.timeout ? '시간 안에 모두 찬성하지 않았어요' : `반대: ${a.opposed.map(p => esc(p.name)).join(', ')}`} · 질문 계속!</small></div>`;
+      sound('bad');
+      ms = 2400;
+    } else {
+      const spy = a.result === 'spy';
+      box.innerHTML = `<div><div class="fx-label">🚨 ${name(a.target)}의 정체는...</div>
+        <div class="fx-cards"><div class="fx-pcard" id="acc1">
+          <div class="face front"><div class="ic">❔</div><div class="nm">${name(a.target)}</div></div>
+          <div class="face back ${spy ? 'spy' : 'citizen'}"><div class="ic">${spy ? '🕵️' : '🙂'}</div><div class="nm">${name(a.target)}</div>
+            <div class="what">${spy ? '스파이였다!' : '시민이었다...'}</div></div></div></div>
+        <div id="fxVerdict"></div></div>`;
+      sound('drum');
+      later.push(setTimeout(() => {
+        $('#acc1').classList.add('flipped');
+        $('#fxVerdict').innerHTML = spy ? '<div class="fx-verdict good">지목 성공! 🎯</div>' : '<div class="fx-verdict bad">엉뚱한 사람을 지목했어요 → 스파이 승리!</div>';
+        sound(spy ? 'good' : 'spywin');
+      }, 1800));
+      ms = 4800;
+    }
   } else if (job.kind === 'spyreveal') {
     box.innerHTML = `<div><div class="fx-label">🕵️ 진짜 스파이는...</div>
       <div class="fx-cards">${job.spies.map((p, i) => `<div class="fx-pcard" id="sr${i}">
