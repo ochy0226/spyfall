@@ -269,14 +269,14 @@ function resultHTML(s) {
   const max = Math.max(1, ...(s.tally || []).map(t => t.votes));
   const spyRows = s.spies.map(p => {
     const how = p.accused ? '지목 투표로 잡힘' : p.out ? '장소를 틀리게 추측해서 들킴' : p.caught ? (p.guess ? `투표로 잡힘 · 마지막 추측: ${esc(p.guess)}` : '투표로 잡힘') : '끝까지 숨었어요!';
-    return `<div class="spy-row"><b>🕵️ ${esc(p.name)}</b><small>${how}</small></div>`;
+    return `<div class="spy-row"><span class="who"><img src="${POSTER.spy}" alt=""><b>${esc(p.name)}</b></span><small>${how}</small></div>`;
   }).join('');
   const tally = (s.tally || []).slice(0, 8).map(t => `<div class="row ${t.spy ? 'spy' : ''}"><span class="nm">${esc(t.name)}${t.spy ? ' 🕵️' : ''}</span>
       <span class="bar"><i style="width:${t.votes / max * 100}%"></i></span><b>${t.votes}</b></div>`).join('') || '<div class="muted">투표 없이 끝났어요</div>';
   const roles = s.players.filter(p => p.inRound).map(p => p.spy
     ? `<div class="spy"><b>${esc(p.name)}</b><span>🕵️ 스파이</span></div>`
     : `<div><b>${esc(p.name)}</b><span>${esc(p.role ? p.role.meaning : '')}</span></div>`).join('');
-  return `<div class="result-head ${s.winner}"><div class="big">${spyWin ? '🕵️' : '🎉'}</div>
+  return `<div class="result-head ${s.winner}"><img class="result-poster" src="${POSTER[s.winner]}" alt="">
       <h2>${spyWin ? '스파이 승리!' : '시민 승리!'}</h2><p class="sub" style="margin:0">${esc(s.winReason)}</p></div>
     <div class="result-loc"><small>비밀 장소</small><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
     <div class="result-cols">
@@ -373,8 +373,7 @@ function runFx() {
       box.innerHTML = `<div><div class="fx-label">🗳 표를 가장 많이 받은 ${caught.length > 1 ? caught.length + '명' : '사람'}은...</div>
         <div class="fx-cards">${caught.map((p, i) => `<div class="fx-pcard" id="pc${i}">
           <div class="face front"><div class="ic">❔</div><div class="nm">${esc(p.name)}</div><div class="votes">${votes[p.id] || 0}표</div></div>
-          <div class="face back ${p.spy ? 'spy' : 'citizen'}"><div class="ic">${p.spy ? '🕵️' : '🙂'}</div><div class="nm">${esc(p.name)}</div>
-            <div class="what">${p.spy ? '스파이였다!' : '시민이었다...'}</div></div></div>`).join('')}</div></div>`;
+          ${posterFace(p.spy ? 'spy' : 'citizen', esc(p.name), p.spy ? '스파이였다!' : '시민이었다...')}</div>`).join('')}</div></div>`;
       sound('drum');
       caught.forEach((p, i) => later.push(setTimeout(() => {
         $('#pc' + i).classList.add('flipped');
@@ -415,8 +414,7 @@ function runFx() {
       box.innerHTML = `<div><div class="fx-label">🚨 ${name(a.target)}의 정체는...</div>
         <div class="fx-cards"><div class="fx-pcard" id="acc1">
           <div class="face front"><div class="ic">❔</div><div class="nm">${name(a.target)}</div></div>
-          <div class="face back ${spy ? 'spy' : 'citizen'}"><div class="ic">${spy ? '🕵️' : '🙂'}</div><div class="nm">${name(a.target)}</div>
-            <div class="what">${spy ? '스파이였다!' : '시민이었다...'}</div></div></div></div>
+          ${posterFace(spy ? 'spy' : 'citizen', name(a.target), spy ? '스파이였다!' : '시민이었다...')}</div></div>
         <div id="fxVerdict"></div></div>`;
       sound('drum');
       later.push(setTimeout(() => {
@@ -430,7 +428,7 @@ function runFx() {
     box.innerHTML = `<div><div class="fx-label">🕵️ 진짜 스파이는...</div>
       <div class="fx-cards">${job.spies.map((p, i) => `<div class="fx-pcard" id="sr${i}">
         <div class="face front"><div class="ic">❔</div><div class="nm">???</div></div>
-        <div class="face back spy"><div class="ic">🕵️</div><div class="nm">${esc(p.name)}</div><div class="what">스파이!</div></div></div>`).join('')}</div></div>`;
+        ${posterFace('spy', esc(p.name), '스파이!')}</div>`).join('')}</div></div>`;
     sound('drum');
     job.spies.forEach((p, i) => later.push(setTimeout(() => { $('#sr' + i).classList.add('flipped'); sound('spywin'); }, 1600 + i * 1200)));
     ms = 1600 + job.spies.length * 1200 + 1800;
@@ -439,10 +437,12 @@ function runFx() {
     ms = 2000;
   } else if (job.kind === 'win') {
     const s = job.s, spyWin = s.winner === 'spy';
-    box.innerHTML = `<div><div class="fx-label">비밀 장소는...</div>
-      <div class="fx-loc"><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
-      <div class="fx-verdict ${spyWin ? 'bad' : 'good'}">${spyWin ? '🕵️ 스파이 승리!' : '🎉 시민 승리!'}</div>
-      <div class="fx-sub" style="font-size:clamp(26px,3.2vw,52px)">🕵️ 스파이는 <b style="color:#ff9c92">${s.spies.map(p => esc(p.name)).join(', ')}</b></div></div>`;
+    box.innerHTML = `<div class="fx-win">
+      <img class="fx-poster ${s.winner}" src="${POSTER[s.winner]}" alt="">
+      <div><div class="fx-label">비밀 장소는...</div>
+        <div class="fx-loc"><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
+        <div class="fx-verdict ${spyWin ? 'bad' : 'good'}">${spyWin ? '스파이 승리!' : '시민 승리!'}</div>
+        <div class="fx-sub" style="font-size:clamp(24px,2.8vw,46px)">스파이는 <b style="color:#ff9c92">${s.spies.map(p => esc(p.name)).join(', ')}</b></div></div></div>`;
     sound('win');
     confetti(spyWin ? 'spy' : 'citizen');
     ms = 4200;

@@ -28,6 +28,15 @@ document.addEventListener('click', e => {
   if (close) closeModal(close.dataset.close);
 });
 
+// 스파이 / 시민 포스터 그림 (결과 공개 연출, 결과 화면, 스파이 카드)
+const POSTER = { spy: '/static/img/spy.webp', citizen: '/static/img/citizen.webp' };
+
+// 공개 카드 뒷면: 포스터 + 아래 이름 띠
+function posterFace(kind, nameHTML, what) {
+  return `<div class="face back poster ${kind}" style="background-image:url('${POSTER[kind]}')">
+    <div class="pc-band"><div class="nm">${nameHTML}</div>${what ? `<div class="what">${what}</div>` : ''}</div></div>`;
+}
+
 function locHTML(c, extra) {
   return `<span class="ic">${esc(c.icon || '📍')}</span><span class="tx"><span class="en">${esc(c.name)}</span><span class="ko">${esc(c.meaning)}</span></span>${extra || ''}`;
 }
