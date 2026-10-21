@@ -122,6 +122,7 @@ function cardFace(s) {
   const pic = me.location.img ? `<img class="card-pic" src="${esc(me.location.img)}" alt="">` : `<div class="loc-ic">${esc(me.location.icon)}</div>`;
   return `${pic}<div class="loc-en">${esc(me.location.name)}</div><div class="loc-ko">${esc(me.location.meaning)}</div>
     <div class="role"><span>나의 역할</span><b>${esc(me.role.meaning)}</b></div>
+    <div class="role-tip">🎭 이 사람인 척 대답해요 · 역할은 말하면 안 돼요</div>
     <div class="tapnote">다시 누르면 덮여요</div>`;
 }
 
