@@ -5,6 +5,7 @@
 import math
 import os
 import random
+import re
 import secrets
 import threading
 import time
@@ -67,7 +68,18 @@ def load_locations() -> list:
             else:
                 locs.append(dict(item, icon=icon.strip() or '📍', roles=[]))
     _locations = [loc for loc in locs if len(loc['roles']) >= 4]
+    # 장소 그림: static/img/places/<이름>.webp (작은 그림은 thumb/ 안에). 없으면 이모지만 쓴다.
+    for loc in _locations:
+        slug = re.sub(r'[^a-z0-9]+', '-', loc['name'].lower()).strip('-')
+        has = os.path.exists(os.path.join(app.root_path, 'static', 'img', 'places', f'{slug}.webp'))
+        loc['img'] = f'/static/img/places/{slug}.webp' if has else None
+        loc['thumb'] = f'/static/img/places/thumb/{slug}.webp' if has else None
     return _locations
+
+
+def loc_pub(loc) -> dict:
+    """화면에 보낼 장소 정보 (역할 목록 제외)."""
+    return {'name': loc['name'], 'meaning': loc['meaning'], 'icon': loc['icon'], 'img': loc.get('img'), 'thumb': loc.get('thumb')}
 
 
 def auto_spies(n: int) -> int:
@@ -706,7 +718,7 @@ class Game:
                 'minutes': self.minutes, 'pack': self.pack, 'spySetting': self.spy_setting,
                 'spyCount': self.spy_count(), 'hiddenSpies': len([p for p in self.spies if p not in self.out]),
                 'minPlayers': MIN_PLAYERS, 'showMeaning': self.show_meaning,
-                'candidates': [{'name': c['name'], 'meaning': c['meaning'], 'icon': c['icon']} for c in self.candidates],
+                'candidates': [loc_pub(c) for c in self.candidates],
                 'players': players, 'turn': turn,
                 'questions': len(self.history),
                 'history': [{'asker': self._pub(h['asker']), 'target': self._pub(h['target'])} for h in self.history[-12:]],
@@ -738,7 +750,7 @@ class Game:
                                     if p in self.spies and p not in self.last_guesses and p in self.players]
             if over:
                 loc = self.location
-                s['location'] = {'name': loc['name'], 'meaning': loc['meaning'], 'icon': loc['icon'], 'roles': loc['roles']} if loc else None
+                s['location'] = dict(loc_pub(loc), roles=loc['roles']) if loc else None
                 s['winner'] = self.winner
                 s['winReason'] = self.win_reason
                 s['spies'] = [dict(self._pub(p), out=p in self.out, accused=p in self.accused_out, caught=p in self.caught,
@@ -747,7 +759,7 @@ class Game:
                 # 선생님 화면 맨 아래(스크롤해야 보이는 곳)에만 쓰는 정답
                 loc = self.location
                 s['secret'] = {
-                    'location': {'name': loc['name'], 'meaning': loc['meaning'], 'icon': loc['icon']},
+                    'location': loc_pub(loc),
                     'spies': [dict(self._pub(p), out=p in self.out) for p in self.spies],
                     'roles': [dict(self._pub(p), spy=r['spy'], role=r['role']) for p, r in self.roles.items() if p in self.players],
                 }
@@ -761,7 +773,7 @@ class Game:
                         'usedAccuse': me in self.accused_by}
                 if r and not r['spy']:
                     mine['role'] = r['role']
-                    mine['location'] = {'name': self.location['name'], 'meaning': self.location['meaning'], 'icon': self.location['icon']}
+                    mine['location'] = loc_pub(self.location)
                 if a:
                     mine['accuseRole'] = 'by' if me == a['by'] else 'target' if me == a['target'] \
                         else 'voter' if me in self._accuse_voters() else None

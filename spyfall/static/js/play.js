@@ -119,7 +119,8 @@ function cardFace(s) {
         : canGuess ? '<button class="btn stamp" style="margin-top:12px" data-guess-open>🎯 장소 맞히기</button>' : ''}
       <div class="tapnote">다시 누르면 덮여요</div>`;
   }
-  return `<div class="loc-ic">${esc(me.location.icon)}</div><div class="loc-en">${esc(me.location.name)}</div><div class="loc-ko">${esc(me.location.meaning)}</div>
+  const pic = me.location.img ? `<img class="card-pic" src="${esc(me.location.img)}" alt="">` : `<div class="loc-ic">${esc(me.location.icon)}</div>`;
+  return `${pic}<div class="loc-en">${esc(me.location.name)}</div><div class="loc-ko">${esc(me.location.meaning)}</div>
     <div class="role"><span>나의 역할</span><b>${esc(me.role.meaning)}</b></div>
     <div class="tapnote">다시 누르면 덮여요</div>`;
 }
@@ -335,7 +336,7 @@ function renderOver(s) {
       <img class="result-poster" src="${POSTER[s.winner]}" alt="">
       <h2>${mine == null ? '게임 끝!' : mine ? '우리 편 승리!' : '아쉽게 졌어요'}</h2>
       <div class="muted" style="margin-bottom:12px">${myRole}</div>
-      <div class="result-loc"><small>비밀 장소</small><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
+      <div class="result-loc"><small>비밀 장소</small>${bigPic(s.location)}<span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
       <div class="spy-reveal"><img src="${POSTER.spy}" alt="">스파이는 <b>${s.spies.map(p => esc(p.name)).join(', ')}</b>${me && me.spy ? ' (나!)' : ''}</div>
       ${me ? myPointsHTML(s, me) : ''}
       <div class="muted" style="margin-top:10px;font-size:13px">선생님이 새 판을 시작하면 새 카드가 나와요.</div></div>`;

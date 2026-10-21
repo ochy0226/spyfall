@@ -74,6 +74,8 @@ button { cursor: pointer; }
   box-shadow: inset 0 0 0 1.5px var(--line); display: flex; align-items: center; gap: 10px;
 }
 .loc .ic { font-size: 26px; line-height: 1; flex: none; width: 1.25em; text-align: center; }
+.loc .ic:has(img) { width: auto; }
+.loc .ic img { display: block; width: 56px; height: 42px; object-fit: cover; border-radius: 7px; }
 .loc .tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .loc .en { font-size: 16px; line-height: 1.15; }
 .loc .ko { font-size: 12.5px; }
@@ -148,6 +150,7 @@ button { cursor: pointer; }
 .t-locs .loc .en { font-size: 22px; }
 .t-locs .loc .ko { font-size: 15px; }
 .t-locs .loc .ic { font-size: 36px; }
+.t-locs .loc .ic img { width: 76px; height: 57px; }
 
 .stage { min-height: 190px; display: flex; align-items: center; gap: 22px; padding: 20px 24px; position: relative; overflow: hidden; }
 .stage.pop { animation: pop .5s cubic-bezier(.2, 1.5, .4, 1); }
@@ -297,6 +300,9 @@ button { cursor: pointer; }
 }
 .result-loc small { display: block; font-weight: 700; color: #8a6400; font-size: 13px; }
 .big-ic { display: block; font-size: 56px; line-height: 1.1; }
+.loc-img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; margin: 6px 0 8px; }
+.fx-loc .loc-img { width: auto; height: min(30vh, 300px); margin: 0 auto 1.5vh; border-radius: 18px; }
+.fx-guess-img { display: block; height: min(34vh, 320px); border-radius: 16px; margin: 0 auto 10px; }
 .fx-loc .big-ic { font-size: clamp(70px, 10vw, 170px); }
 .result-loc .en { font-size: 32px; display: block; }
 .result-loc .ko { font-size: 17px; }
@@ -372,7 +378,7 @@ button { cursor: pointer; }
   display: inline-block; margin-top: 3vh; background: var(--gold-soft); color: var(--ink); border-radius: 28px; padding: 3vh 4vw;
   box-shadow: 0 0 0 10px var(--gold), 0 30px 80px -20px rgba(0, 0, 0, .7); animation: cardIn .8s cubic-bezier(.2, 1.4, .4, 1) both;
 }
-.fx-loc .en { font-size: clamp(56px, 8vw, 140px); display: block; line-height: 1; }
+.fx-loc .en { font-size: clamp(48px, 6.5vw, 110px); display: block; line-height: 1; }
 .fx-loc .ko { font-size: clamp(22px, 2.6vw, 44px); color: #8a6400; }
 @keyframes cardIn { 0% { transform: perspective(900px) rotateY(100deg) scale(.6); opacity: 0; } 100% { transform: none; opacity: 1; } }
 
@@ -405,7 +411,7 @@ button { cursor: pointer; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(29, 111, 140, .3); } }
 
 .rcard { position: relative; margin-bottom: 12px; perspective: 1200px; user-select: none; -webkit-user-select: none; }
-.rcard .inner { position: relative; height: 230px; transition: transform .55s cubic-bezier(.3, 1.2, .5, 1); transform-style: preserve-3d; }
+.rcard .inner { position: relative; height: 310px; transition: transform .55s cubic-bezier(.3, 1.2, .5, 1); transform-style: preserve-3d; }
 .rcard.open .inner { transform: rotateY(180deg); }
 .rcard .side {
   position: absolute; inset: 0; border-radius: 18px; backface-visibility: hidden; -webkit-backface-visibility: hidden;
@@ -423,6 +429,7 @@ button { cursor: pointer; }
   background: linear-gradient(rgba(20, 24, 33, .35), rgba(20, 24, 33, .88) 55%), url('../img/spy.webp') center 15% / cover; }
 .rcard .face .lbl { font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: .5px; }
 .rcard .face .loc-ic { font-size: 52px; line-height: 1; margin-bottom: 4px; }
+.rcard .face .card-pic { width: 100%; height: 150px; object-fit: cover; border-radius: 12px; margin-bottom: 8px; }
 .rcard .face .loc-en { font-size: 34px; font-weight: 900; line-height: 1.05; letter-spacing: -.02em; }
 .rcard .face .loc-ko { font-size: 16px; color: #8a6400; font-weight: 700; }
 .rcard .face .role { margin-top: 12px; background: #f3ecdd; border-radius: 10px; padding: 6px 14px; }

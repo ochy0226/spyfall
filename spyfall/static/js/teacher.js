@@ -105,7 +105,15 @@ function seg(opt, items, cur) {
     `<button class="${v === cur ? 'on' : ''}" data-opt="${opt}" data-val="${v}">${label}</button>`).join('')}</div>`;
 }
 
+let preloadedRound = null;
+function preloadPics(s) {
+  if (preloadedRound === s.round || s.phase === 'lobby') return;
+  preloadedRound = s.round;
+  s.candidates.forEach(c => { if (c.img) new Image().src = c.img; });
+}
+
 function renderStage(s, prev) {
+  preloadPics(s);
   const el = $('#stage');
   el.classList.toggle('dark', s.phase === 'vote' || s.phase === 'last');
   if (s.phase === 'lobby') {
@@ -247,7 +255,7 @@ function renderSecret(s) {
   }
   const sc = s.secret;
   el.innerHTML = `<div class="secret-grid">
-      <div class="secret-loc"><span class="big-ic">${esc(sc.location.icon)}</span><span class="en">${esc(sc.location.name)}</span><span class="ko">${esc(sc.location.meaning)}</span></div>
+      <div class="secret-loc">${bigPic(sc.location)}<span class="en">${esc(sc.location.name)}</span><span class="ko">${esc(sc.location.meaning)}</span></div>
       <div><h3>🕵️ 스파이</h3><div class="secret-spies">${sc.spies.map(p => `<span>${esc(p.name)}${p.out ? ' (들킴)' : ''}</span>`).join('')}</div>
         <h3 style="margin-top:16px">역할 카드</h3><div class="role-grid">${sc.roles.map(r => r.spy
           ? `<div class="spy"><b>${esc(r.name)}</b><span>🕵️ 스파이</span></div>`
@@ -278,7 +286,7 @@ function resultHTML(s) {
     : `<div><b>${esc(p.name)}</b><span>${esc(p.role ? p.role.meaning : '')}</span></div>`).join('');
   return `<div class="result-head ${s.winner}"><img class="result-poster" src="${POSTER[s.winner]}" alt="">
       <h2>${spyWin ? '스파이 승리!' : '시민 승리!'}</h2><p class="sub" style="margin:0">${esc(s.winReason)}</p></div>
-    <div class="result-loc"><small>비밀 장소</small><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
+    <div class="result-loc"><small>비밀 장소</small>${bigPic(s.location)}<span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
     <div class="result-cols">
       <div><h3>스파이 ${s.spies.length}명</h3><div class="spy-list">${spyRows}</div></div>
       <div><h3>투표 결과</h3><div class="tally">${tally}</div></div>
@@ -349,7 +357,7 @@ function runFx() {
     const e = job.e;
     const c = job.s.candidates.find(x => x.name === e.guess) || { name: e.guess, meaning: '' };
     box.innerHTML = `<div><div class="fx-label">🚨 스파이 등장! <b>${name(e.by)}</b> 학생이 정체를 밝혔어요</div>
-      <div class="fx-guess">${esc(c.icon || '')} "${esc(c.name)}?"<small>${esc(c.meaning)}</small></div>
+      <div class="fx-guess">${c.img ? `<img class="fx-guess-img" src="${esc(c.img)}" alt="">` : esc(c.icon || '')} "${esc(c.name)}?"<small>${esc(c.meaning)}</small></div>
       <div id="fxVerdict"></div></div>`;
     sound('drum');
     later.push(setTimeout(() => {
@@ -389,7 +397,7 @@ function runFx() {
   } else if (job.kind === 'lastguess') {
     const e = job.e;
     box.innerHTML = `<div><div class="fx-label">🕵️ ${name(e.by)}의 마지막 추측은...</div>
-      <div class="fx-guess">"${esc(e.guess)}?"</div><div id="fxVerdict"></div></div>`;
+      <div class="fx-guess">${(c => c && c.img ? `<img class="fx-guess-img" src="${esc(c.img)}" alt="">` : '')(state.candidates.find(x => x.name === e.guess))}"${esc(e.guess)}?"</div><div id="fxVerdict"></div></div>`;
     sound('drum');
     later.push(setTimeout(() => {
       $('#fxVerdict').innerHTML = e.correct ? '<div class="fx-verdict good">정답! 역전승 🕵️</div>' : '<div class="fx-verdict bad">땡! ❌</div>';
@@ -440,7 +448,7 @@ function runFx() {
     box.innerHTML = `<div class="fx-win">
       <img class="fx-poster ${s.winner}" src="${POSTER[s.winner]}" alt="">
       <div><div class="fx-label">비밀 장소는...</div>
-        <div class="fx-loc"><span class="big-ic">${esc(s.location.icon)}</span><span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
+        <div class="fx-loc">${bigPic(s.location)}<span class="en">${esc(s.location.name)}</span><span class="ko">${esc(s.location.meaning)}</span></div>
         <div class="fx-verdict ${spyWin ? 'bad' : 'good'}">${spyWin ? '스파이 승리!' : '시민 승리!'}</div>
         <div class="fx-sub" style="font-size:clamp(24px,2.8vw,46px)">스파이는 <b style="color:#ff9c92">${s.spies.map(p => esc(p.name)).join(', ')}</b></div></div></div>`;
     sound('win');

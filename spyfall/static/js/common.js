@@ -38,7 +38,13 @@ function posterFace(kind, nameHTML, what) {
 }
 
 function locHTML(c, extra) {
-  return `<span class="ic">${esc(c.icon || '📍')}</span><span class="tx"><span class="en">${esc(c.name)}</span><span class="ko">${esc(c.meaning)}</span></span>${extra || ''}`;
+  const pic = c.thumb ? `<img src="${esc(c.thumb)}" alt="">` : esc(c.icon || '📍');
+  return `<span class="ic">${pic}</span><span class="tx"><span class="en">${esc(c.name)}</span><span class="ko">${esc(c.meaning)}</span></span>${extra || ''}`;
+}
+
+// 큰 장소 그림 (없으면 큰 이모지)
+function bigPic(loc) {
+  return loc.img ? `<img class="loc-img" src="${esc(loc.img)}" alt="">` : `<span class="big-ic">${esc(loc.icon || '📍')}</span>`;
 }
 
 function rulesHTML() {
